@@ -24,7 +24,6 @@ export function useSimRunner() {
     currentDesign,
     simStepSize,
     setSimRunning,
-    setSimState,
     addTelemetrySample,
     clearTelemetry,
     telemetry,

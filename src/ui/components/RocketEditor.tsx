@@ -9,7 +9,7 @@ import { radiusFromVolumeAndElongation, crossSectionAreaFromRadius } from '../..
 import { ENGINE_PROPS, ENGINE_TYPES } from '../../sim/engines';
 import { getMaxStages, getMaxDesignSlots, getUnlockedStageTypes, STAGE_TYPE_LABELS } from './UpgradesPanel';
 import { useStore } from '../../state/store';
-import { computeStageStats, getTotalDeltaV, type StageStats } from '../../sim/rocket';
+import { computeStageStats, type StageStats } from '../../sim/rocket';
 
 const TANK_MATERIALS: Material[] = ['steel', 'paper', 'plastic', 'carbon'];
 

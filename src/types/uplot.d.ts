@@ -6,6 +6,7 @@ declare module 'uplot' {
     height: number;
     series: Series[];
     axes: Axis[];
+    [key: string]: unknown;
   }
 
   export interface Series {
@@ -13,11 +14,14 @@ declare module 'uplot' {
     show?: boolean;
     stroke?: string;
     width?: number;
+    [key: string]: unknown;
   }
 
   export interface Axis {
     label?: string;
     side?: number;
+    values?: (u: uPlot, splits: number[]) => string[];
+    [key: string]: unknown;
   }
 
   export type AlignedData = (number | number[])[];

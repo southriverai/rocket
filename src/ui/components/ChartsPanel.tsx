@@ -106,7 +106,7 @@ function buildChartOptions(
     legend: { show: false },
     hooks: {
       setCursor: [
-        (u, left) => {
+        (_u: uPlot, left: number | null) => {
           if (typeof left === 'number') onCursorMove?.(left);
         },
       ],
