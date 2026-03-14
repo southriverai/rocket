@@ -40,10 +40,7 @@ A browser-based rocket design and simulation game with deterministic replays, bu
 The simulation is deterministic through:
 
 1. **Fixed Timestep**: All physics steps use a fixed `dt` (default 0.01s)
-2. **Seeded PRNG**: All randomness uses a seeded PRNG
-3. **Event-Driven**: State changes are driven by events with exact timestamps
-4. **Checkpointing**: Periodic state snapshots enable fast replay scrubbing
-
+3. **Event-Driven**: State changes are driven by events with exact
 ## Replay System
 
 Replays are stored as bundles containing:

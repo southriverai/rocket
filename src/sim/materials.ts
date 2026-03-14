@@ -10,6 +10,14 @@ export const TANK_DRY_MASS_PER_KG_FUEL: Record<Material, number> = {
   carbon: 0.04,  // light and strong
 };
 
+/** Approximate structural load limit per kg of dry mass (N/kg). */
+export const STRUCTURAL_LOAD_LIMIT_N_PER_KG: Record<Material, number> = {
+  steel: 3,      // 3 N/kg for steel
+  paper: 0.5,
+  plastic: 1.5,
+  carbon: 2.5,
+};
+
 /** Human-readable labels for casing materials. */
 export const MATERIAL_LABELS: Record<Material, string> = {
   steel: 'Steel',

@@ -16,10 +16,11 @@ export function createTelemetrySample(
   const verticalSpeed = state.velocity.y;
 
   const forces = computeForces(state, params, altitude);
-  const acceleration = Math.sqrt(
-    (forces.total.x / state.currentMass) ** 2 +
-    (forces.total.y / state.currentMass) ** 2
+  const totalForceMag = Math.sqrt(
+    forces.total.x ** 2 +
+    forces.total.y ** 2
   );
+  const acceleration = state.currentMass > 0 ? totalForceMag / state.currentMass : 0;
 
   // Air density at altitude (kg/m³)
   const airDensity = params.seaLevelDensity * Math.exp(-altitude / params.scaleHeight);
@@ -42,6 +43,7 @@ export function createTelemetrySample(
     thrust: state.currentThrust,
     twr,
     airDensity,
+    structuralLoad: totalForceMag,
   };
 
   if (extras) {

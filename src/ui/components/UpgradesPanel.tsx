@@ -1,4 +1,4 @@
-// Upgrades tab: unlock upgrades for money
+// Upgrades tab: unlock upgrades with points
 
 import { useStore } from '../../state/store';
 import type { StageType } from '../../sim/simTypes';
@@ -62,7 +62,7 @@ export function UpgradesPanel() {
     <div style={{ padding: '1rem' }}>
       <h2>Upgrades</h2>
       <p style={{ color: '#666', marginBottom: '1rem' }}>
-        Spend money to unlock new capabilities. Earn money by running simulations (Cash/s while flying).
+        Spend points to unlock new capabilities. Earn points by completing achievements during flights.
       </p>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
         {UPGRADES.map((upgrade) => {
@@ -86,7 +86,7 @@ export function UpgradesPanel() {
                   )}
                 </div>
                 {!unlocked && (
-                  <span style={{ color: '#666' }}>${upgrade.cost}</span>
+                  <span style={{ color: '#666' }}>{upgrade.cost} pts</span>
                 )}
               </div>
               <p style={{ margin: '0.5rem 0 0', color: '#555', fontSize: '0.95rem' }}>
@@ -103,7 +103,9 @@ export function UpgradesPanel() {
                     opacity: canAfford ? 1 : 0.6,
                   }}
                 >
-                  {canAfford ? `Unlock ($${upgrade.cost})` : `Need $${upgrade.cost - money} more`}
+                  {canAfford
+                    ? `Unlock (${upgrade.cost} pts)`
+                    : `Need ${upgrade.cost - money} more pts`}
                 </button>
               )}
             </div>

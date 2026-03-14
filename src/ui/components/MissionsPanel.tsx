@@ -1,4 +1,4 @@
-// Missions tab: Sounding mission + past runs (replays)
+// Achievements tab: Sounding achievement + past runs (replays)
 
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../../state/store';
@@ -8,23 +8,24 @@ import { loadReplays, deleteReplay } from '../../utils/db';
 
 const STRATOSPHERE_ALTITUDE_KM = 15;
 
-const MISSIONS = [
+const ACHIEVEMENTS = [
   {
     id: 'sounding',
     name: 'Sounding',
-    description: 'Launch your rocket. Earn $1 for every 100 m altitude reached.',
-    payPer100m: 1,
+    description: 'Launch your rocket.',
+    points: 5,
   },
   {
     id: 'stratosphere-test',
     name: 'Stratosphere test',
-    description: `Earn $1 per kilogram of payload mass delivered to the stratosphere (${STRATOSPHERE_ALTITUDE_KM} km).`,
-    payPerKg: 1,
+    description: `Deliver payload to the stratosphere (${STRATOSPHERE_ALTITUDE_KM} km).`,
+    points: 5,
   },
 ];
 
 export function MissionsPanel() {
   const {
+    unlockedAchievements,
     replays,
     selectedReplayIds,
     currentReplayTime,
@@ -37,6 +38,8 @@ export function MissionsPanel() {
     addReplay,
     removeReplay,
   } = useStore();
+
+  const [hideUnlocked, setHideUnlocked] = useState(false);
 
   const workerRef = useRef<Worker | null>(null);
   const apiRef = useRef<Comlink.Remote<WorkerApi> | null>(null);
@@ -115,35 +118,83 @@ export function MissionsPanel() {
 
   return (
     <div style={{ padding: '1rem' }}>
-      <h2>Missions</h2>
-
-      {MISSIONS.map((mission) => (
-        <div
-          key={mission.id}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: '0.75rem',
+        }}
+      >
+        <h2 style={{ margin: 0 }}>Achievements</h2>
+        <button
+          type="button"
+          onClick={() => setHideUnlocked((v) => !v)}
           style={{
-            marginBottom: '1rem',
-            padding: '1rem',
-            border: '1px solid #2e7d32',
-            borderRadius: '8px',
-            backgroundColor: '#e8f5e9',
+            padding: '0.25rem 0.6rem',
+            fontSize: '0.8rem',
+            cursor: 'pointer',
           }}
         >
-          <h3 style={{ marginTop: 0 }}>{mission.name}</h3>
-          <p style={{ margin: '0.5rem 0', color: '#1b5e20' }}>
-            {mission.description}
-          </p>
-          <p style={{ margin: 0, fontSize: '0.9rem', color: '#666' }}>
-            {'payPer100m' in mission && `Pay: $${mission.payPer100m} per 100 m. `}
-            {'payPerKg' in mission && `Pay: $${mission.payPerKg} per kg at ${STRATOSPHERE_ALTITUDE_KM} km. `}
-            Launch from Design tab.
-          </p>
-        </div>
-      ))}
+          {hideUnlocked ? 'Show unlocked' : 'Hide unlocked'}
+        </button>
+      </div>
+
+      {ACHIEVEMENTS.filter((a) =>
+        hideUnlocked ? !unlockedAchievements.includes(a.id) : true
+      ).map((achievement) => {
+        const unlocked = unlockedAchievements.includes(achievement.id);
+        return (
+          <div
+            key={achievement.id}
+            style={{
+              marginBottom: '1rem',
+              padding: '1rem',
+              border: unlocked ? '1px solid #2e7d32' : '1px solid #aaa',
+              borderRadius: '8px',
+              backgroundColor: unlocked ? '#e8f5e9' : '#f0f0f0',
+              opacity: unlocked ? 1 : 0.7,
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '0.25rem',
+              }}
+            >
+              <h3 style={{ margin: 0 }}>{achievement.name}</h3>
+              <span
+                style={{
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  color: unlocked ? '#2e7d32' : '#777',
+                  textTransform: 'uppercase',
+                }}
+              >
+                {unlocked ? 'Unlocked' : 'Locked'}
+              </span>
+            </div>
+            <p
+              style={{
+                margin: '0.25rem 0 0.35rem',
+                color: unlocked ? '#1b5e20' : '#555',
+              }}
+            >
+              {achievement.description}
+            </p>
+            <p style={{ margin: 0, fontSize: '0.9rem', color: '#666' }}>
+              Worth {achievement.points ?? 5} points. Launch from Design tab.
+            </p>
+          </div>
+        );
+      })}
 
       <div style={{ marginBottom: '1rem' }}>
         <h3>Past runs</h3>
         {replays.length === 0 ? (
-          <p>No runs yet. Launch from Design to complete the Sounding mission.</p>
+          <p>No runs yet. Launch from Design to complete the Sounding achievement.</p>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             {replays.map((replay) => {

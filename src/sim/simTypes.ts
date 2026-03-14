@@ -42,6 +42,10 @@ export interface Stage {
   /** Engine type (burn rate, mass, thrust, isp). Defaults to 'basic-exhaust'. */
   engineType?: EngineType;
   fuelMass: number;   // kg
+  /** Optional override for engine burn rate in L/s (0–1). */
+  burnRateOverrideLs?: number;
+  /** Seconds before burnout where thrust linearly ramps down to zero. */
+  burndownTime?: number;
   /** Tank shape: 1 = sphere, 2–5 = capsule (height/diameter = elongation; higher = thinner and taller). */
   elongation?: number;
   /** Aerodynamics shape (sets friction coefficient for drag). */
@@ -77,6 +81,12 @@ export interface RocketDesign {
   id: string;
   name: string;
   stages: Stage[];
+  /** Over-engineering factor for dry mass (1–2). */
+  overEngineeringFactor?: number;
+  /** Structural material and shape shared by all stages. */
+  structureMaterial?: Material;
+  structureElongation?: number;
+  structureAerodynamics?: AerodynamicsType;
   /** Set when passing to sim worker (generated from stages). */
   parts?: Part[];
   /** Stage part IDs for buildStages; set when passing to sim. */
@@ -125,6 +135,8 @@ export interface TelemetrySample {
   thrust: number;
   twr: number; // thrust-to-weight ratio
   airDensity: number; // kg/m³ at current altitude
+  /** Structural load (N/kg of dry mass). */
+  structuralLoad?: number;
   /** Timestep used at this sample (adaptive sim). */
   dt?: number;
   /** Max fraction of change per timestep (0.01 = 1%); convert to % only when displaying. */

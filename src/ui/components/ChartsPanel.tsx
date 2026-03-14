@@ -46,6 +46,7 @@ const METRICS: { key: MetricKey; label: string; unit: string; format: (n: number
   { key: 'thrust', label: 'Thrust', unit: 'N', format: (n) => n.toFixed(0) },
   { key: 'twr', label: 'TWR', unit: '', format: (n) => n.toFixed(2) },
   { key: 'airDensity', label: 'Air density', unit: 'kg/m³', format: (n) => n.toFixed(4) },
+  { key: 'structuralLoad', label: 'Structural load', unit: 'N', format: (n) => n.toFixed(0) },
 ];
 
 const DEFAULT_VISIBLE_CHARTS: Record<string, boolean> = {
@@ -58,6 +59,7 @@ const DEFAULT_VISIBLE_CHARTS: Record<string, boolean> = {
   thrust: false,
   twr: false,
   airDensity: false,
+   structuralLoad: false,
 };
 
 /** Format x-axis ticks as seconds (plain numbers), not time of day */
@@ -203,6 +205,7 @@ export function ChartsPanel() {
           maxVelocity: Math.max(...telemetry.map((s) => s.speed)),
           flightDuration: Math.max(...telemetry.map((s) => s.t)),
           maxFriction: Math.max(...telemetry.map((s) => s.friction ?? 0)),
+          maxStructuralLoad: Math.max(...telemetry.map((s) => s.structuralLoad ?? 0)),
           totalDeltaV,
           ascentLosses: {
             gravityLoss: gravityLoss[maxAltIdx] ?? 0,
@@ -252,6 +255,8 @@ export function ChartsPanel() {
               <span>{flightSummary.flightDuration.toFixed(1)} s</span>
               <span style={{ color: '#666' }}>Max friction</span>
               <span>{flightSummary.maxFriction.toFixed(0)} N</span>
+              <span style={{ color: '#666' }}>Max structural load</span>
+              <span>{flightSummary.maxStructuralLoad.toFixed(0)} N</span>
               <span style={{ color: '#666' }}>Total Δv (design)</span>
               <span>{flightSummary.totalDeltaV.toFixed(0)} m/s</span>
             </div>

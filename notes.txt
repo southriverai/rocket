@@ -1,0 +1,54 @@
+saturn 5 stats
+
+dry mass 220 tonnes
+
+at max Q
+| Quantity         | Value          |
+| ---------------- | -------------- |
+| Mass             | **~1,850 t**   |
+| Velocity         | **~450 m/s**   |
+| Altitude         | **~12 km**     |
+| Thrust           | **~31 MN**  |
+| Dynamic pressure | **~34 kPa** |
+
+
+
+
+Falcon 9 block 5
+| Quantity         | Value                   |
+| ---------------- | ----------------------- |
+| Mass             | **~360 t**              |
+| Velocity         | **~400 m/s**            |
+| Altitude         | **~11–12 km**           |
+| Thrust           | **~6–7 MN (throttled)** |
+| Dynamic pressure | **~30–40 kPa**          |
+
+
+
+
+
+
+| Rocket           | Diameter | Frontal area |
+| ---------------- | -------- | ------------ |
+| Saturn V         | 10.1 m   | ~80 m²       |
+| Falcon 9 Block 5 | 3.7 m    | ~10.7 m²     |
+
+
+
+
+Soyuz-2
+3.2N/kg
+
+Saturn 5
+4.7N/kg
+
+Ariane 5
+4.9N/kg
+
+Delta 4 heavy
+4.8N/kg
+
+Falcon 9 block 5
+5.9N/kg
+
+Atlas 5

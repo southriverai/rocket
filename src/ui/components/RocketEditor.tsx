@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import type { RocketDesign, Stage, Material, SolidFuelType, StageType, EngineType, AerodynamicsType } from '../../sim/simTypes';
 import { AERODYNAMICS_OPTIONS, AERODYNAMICS_COEFF } from '../../sim/simTypes';
-import { MATERIAL_LABELS, getTankDryMass } from '../../sim/materials';
+import { MATERIAL_LABELS, getTankDryMass, STRUCTURAL_LOAD_LIMIT_N_PER_KG } from '../../sim/materials';
 import { SOLID_FUEL_PROPS, SOLID_FUEL_TYPES, fuelMassToVolumeL } from '../../sim/solidFuels';
 import { radiusFromVolumeAndElongation, crossSectionAreaFromRadius } from '../../sim/tankGeometry';
 import { ENGINE_PROPS, ENGINE_TYPES } from '../../sim/engines';
@@ -39,6 +39,7 @@ export function RocketEditor({
     ensureDesignSlotsCount,
     unlockedUpgrades,
     simRunning,
+    telemetry,
   } = useStore();
   const maxStages = getMaxStages(unlockedUpgrades);
   const maxDesignSlots = getMaxDesignSlots(unlockedUpgrades);
@@ -55,6 +56,7 @@ export function RocketEditor({
       id: Date.now().toString(),
       name: `Design ${(currentSlotIndex ?? 0) + 1}`,
       stages: [],
+      overEngineeringFactor: 1,
       createdAt: Date.now(),
     };
     setDesignInCurrentSlot(design);
@@ -150,10 +152,142 @@ export function RocketEditor({
             <input
               type="text"
               value={currentDesign.name}
-              onChange={(e) => setCurrentDesign({ ...currentDesign, name: e.target.value.trim() || currentDesign.name })}
-              style={{ fontSize: '1.25rem', fontWeight: 600, padding: '0.35rem 0.5rem', flex: '1 1 200px' }}
+              onChange={(e) =>
+                setCurrentDesign({
+                  ...currentDesign,
+                  name: e.target.value.trim() || currentDesign.name,
+                })
+              }
+              style={{
+                fontSize: '1.25rem',
+                fontWeight: 600,
+                padding: '0.35rem 0.5rem',
+                flex: '1 1 200px',
+              }}
             />
             <button onClick={backToDesignSlots}>Back</button>
+          </div>
+
+          <div style={{ marginBottom: '1rem' }}>
+            <h4>Structure</h4>
+            <div style={stageGridStyle}>
+              {/* Base dry mass without over-engineering */}
+              <label>Dry mass (base):</label>
+              <span>
+                {(() => {
+                  const factor = currentDesign.overEngineeringFactor ?? 1;
+                  const totalDry = computeStageStats(currentDesign).reduce(
+                    (sum, s) => sum + s.dryMass,
+                    0
+                  );
+                  const base = factor > 0 ? totalDry / factor : totalDry;
+                  return base.toFixed(1);
+                })()}{' '}
+                kg
+              </span>
+
+              <label>Over-engineering factor:</label>
+              <div>
+                <input
+                  type="number"
+                  min={1}
+                  max={5}
+                  step={0.05}
+                  value={currentDesign.overEngineeringFactor ?? 1}
+                  onChange={(e) =>
+                    setCurrentDesign({
+                      ...currentDesign,
+                      overEngineeringFactor: Math.max(
+                        1,
+                        Math.min(2, parseFloat(e.target.value) || 1)
+                      ),
+                    })
+                  }
+                  style={{ ...stageFieldStyle, width: 80 }}
+                />
+                <div style={{ fontSize: '0.8rem', color: '#666', marginTop: '0.25rem' }}>
+                  Multiplies base dry mass by this factor (1–5).
+                </div>
+              </div>
+
+              {/* Dry mass after applying over-engineering factor */}
+              <label>Dry mass (effective):</label>
+              <span>
+                {computeStageStats(currentDesign)
+                  .reduce((sum, s) => sum + s.dryMass, 0)
+                  .toFixed(1)}{' '}
+                kg
+              </span>
+
+              <label>Structural material:</label>
+              <select
+                style={stageFieldStyle}
+                value={currentDesign.structureMaterial ?? 'steel'}
+                onChange={(e) =>
+                  setCurrentDesign({
+                    ...currentDesign,
+                    structureMaterial: e.target.value as Material,
+                  })
+                }
+              >
+                {TANK_MATERIALS.map((m) => (
+                  <option key={m} value={m}>
+                    {MATERIAL_LABELS[m]}
+                  </option>
+                ))}
+              </select>
+
+              <label>Elongation:</label>
+              <input
+                style={stageFieldStyle}
+                type="number"
+                min={1}
+                max={5}
+                step={0.1}
+                value={currentDesign.structureElongation ?? 1}
+                onChange={(e) =>
+                  setCurrentDesign({
+                    ...currentDesign,
+                    structureElongation: Math.max(
+                      1,
+                      Math.min(5, parseFloat(e.target.value) || 1)
+                    ),
+                  })
+                }
+              />
+
+              <label>Aerodynamics:</label>
+              <select
+                style={stageFieldStyle}
+                value={currentDesign.structureAerodynamics ?? 'cone'}
+                onChange={(e) =>
+                  setCurrentDesign({
+                    ...currentDesign,
+                    structureAerodynamics: e.target.value as AerodynamicsType,
+                  })
+                }
+              >
+                {AERODYNAMICS_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+
+              <label>Max structural load (design) [N]:</label>
+              <span>
+                {(() => {
+                  const effectiveDry = computeStageStats(currentDesign).reduce(
+                    (sum, s) => sum + s.dryMass,
+                    0
+                  );
+                  const material = currentDesign.structureMaterial ?? 'steel';
+                  const limitPerKg = STRUCTURAL_LOAD_LIMIT_N_PER_KG[material];
+                  return (effectiveDry * limitPerKg).toFixed(0);
+                })()}{' '}
+                N
+              </span>
+            </div>
           </div>
 
           <div style={{ marginBottom: '1rem' }}>
@@ -161,15 +295,14 @@ export function RocketEditor({
             <button
               onClick={addStage}
               disabled={currentDesign.stages.length >= maxStages}
-              style={{ opacity: currentDesign.stages.length >= maxStages ? 0.6 : 1, cursor: currentDesign.stages.length >= maxStages ? 'not-allowed' : 'pointer' }}
+              title={currentDesign.stages.length >= maxStages && maxStages < 3 ? 'Unlock 2nd or 3rd stage in the Upgrades tab.' : undefined}
+              style={{
+                opacity: currentDesign.stages.length >= maxStages ? 0.6 : 1,
+                cursor: currentDesign.stages.length >= maxStages ? 'not-allowed' : 'pointer',
+              }}
             >
               + Add stage
             </button>
-            {currentDesign.stages.length >= maxStages && maxStages < 3 && (
-              <p style={{ fontSize: '0.85rem', color: '#666', marginTop: '0.5rem' }}>
-                Unlock 2nd or 3rd stage in the Upgrades tab.
-              </p>
-            )}
           </div>
 
           <div>
@@ -278,69 +411,6 @@ function StageEditor({
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
-        <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#555', marginBottom: '0.5rem' }}>Structural</div>
-        <div style={stageGridStyle}>
-          <label>Structural material:</label>
-          <select
-            style={stageFieldStyle}
-            value={stage.material ?? 'steel'}
-            onChange={(e) => onUpdate({ material: e.target.value as Material })}
-          >
-            {TANK_MATERIALS.map((m) => (
-              <option key={m} value={m}>{MATERIAL_LABELS[m]}</option>
-            ))}
-          </select>
-          <label>Elongation:</label>
-          <input
-            style={stageFieldStyle}
-            type="number"
-            min={1}
-            max={5}
-            step={0.1}
-            value={stage.elongation ?? 1}
-            onChange={(e) => onUpdate({ elongation: Math.max(1, Math.min(5, parseFloat(e.target.value) || 1)) })}
-          />
-          <label>Radius:</label>
-          <span>
-            {radiusFromVolumeAndElongation(
-              fuelMassToVolumeL(stage.fuelMass, stage.solidFuelType ?? 'black-powder'),
-              stage.elongation ?? 1
-            ).toFixed(3)}{' '}
-            m
-          </span>
-          <label title="Frontal cross-section of the rocket (πR²); used e.g. for drag.">Cross-section area:</label>
-          <span
-            title="Frontal cross-section of the rocket (πR²); the circular area when viewed from the front."
-          >
-            {crossSectionAreaFromRadius(
-              radiusFromVolumeAndElongation(
-                fuelMassToVolumeL(stage.fuelMass, stage.solidFuelType ?? 'black-powder'),
-                stage.elongation ?? 1
-              )
-            ).toFixed(2)}{' '}
-            m²
-          </span>
-          <label title="Nose shape; sets the drag coefficient for this stage.">Aerodynamics:</label>
-          <select
-            style={stageFieldStyle}
-            value={stage.aerodynamics ?? 'cone'}
-            onChange={(e) => {
-              const value = e.target.value as AerodynamicsType;
-              onUpdate({ aerodynamics: value, frictionCoeff: AERODYNAMICS_COEFF[value] });
-            }}
-          >
-            {AERODYNAMICS_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
-          </select>
-          <label title="Drag coefficient (set by aerodynamics selection).">Drag coefficient:</label>
-          <span style={stageFieldStyle}>
-            {(stage.frictionCoeff ?? AERODYNAMICS_COEFF[stage.aerodynamics ?? 'cone']).toFixed(2)}
-          </span>
-        </div>
-
-        <hr style={{ border: 'none', borderTop: '1px solid #ccc', margin: '0.75rem 0' }} />
-
         <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#555', marginBottom: '0.5rem' }}>Fuel</div>
         <div style={stageGridStyle}>
           <label>Type:</label>
@@ -379,18 +449,18 @@ function StageEditor({
           />
           {(stage.material != null) && (
             <>
-              <label>Tank structure mass (kg):</label>
+              <label>Tank structure mass [kg]:</label>
               <span>{getTankDryMass(stage.fuelMass, stage.material).toFixed(1)}</span>
             </>
           )}
           {currentType === 'solid' && (
             <>
-              <label>Energy density:</label>
-              <span>{(SOLID_FUEL_PROPS[stage.solidFuelType ?? 'black-powder'].energyDensityJkg / 1e6).toFixed(2)} MJ/kg</span>
-              <label>Density:</label>
-              <span>{SOLID_FUEL_PROPS[stage.solidFuelType ?? 'black-powder'].densityKgL.toFixed(2)} kg/L</span>
-              <label>Tank volume:</label>
-              <span>{fuelMassToVolumeL(stage.fuelMass, stage.solidFuelType ?? 'black-powder').toFixed(1)} L</span>
+              <label>Energy density [MJ/kg]:</label>
+              <span>{(SOLID_FUEL_PROPS[stage.solidFuelType ?? 'black-powder'].energyDensityJkg / 1e6).toFixed(2)}</span>
+              <label>Density [kg/L]:</label>
+              <span>{SOLID_FUEL_PROPS[stage.solidFuelType ?? 'black-powder'].densityKgL.toFixed(2)}</span>
+              <label>Tank volume [L]:</label>
+              <span>{fuelMassToVolumeL(stage.fuelMass, stage.solidFuelType ?? 'black-powder').toFixed(1)}</span>
             </>
           )}
         </div>
@@ -409,12 +479,44 @@ function StageEditor({
               <option key={t} value={t}>{ENGINE_PROPS[t].label}</option>
             ))}
           </select>
-          <label>Engine mass:</label>
-          <span>{ENGINE_PROPS[stage.engineType ?? 'basic-exhaust'].massKg} kg</span>
-          <label>Burn rate:</label>
-          <span>{ENGINE_PROPS[stage.engineType ?? 'basic-exhaust'].burnRateLs} L/s</span>
-          <label>Efficiency:</label>
-          <span>{(ENGINE_PROPS[stage.engineType ?? 'basic-exhaust'].efficiency * 100).toFixed(0)}%</span>
+          <label>Engine mass [kg]:</label>
+          <span>{ENGINE_PROPS[stage.engineType ?? 'basic-exhaust'].massKg}</span>
+          <label>Burn rate [L/s]:</label>
+          <input
+            style={stageFieldStyle}
+            type="number"
+            min={0}
+            max={1}
+            step={0.01}
+            value={
+              stage.burnRateOverrideLs ??
+              ENGINE_PROPS[stage.engineType ?? 'basic-exhaust'].burnRateLs
+            }
+            onChange={(e) =>
+              onUpdate({
+                burnRateOverrideLs: Math.max(
+                  0,
+                  Math.min(1, parseFloat(e.target.value) || 0)
+                ),
+              })
+            }
+          />
+          <label>Efficiency [%]:</label>
+          <span>{(ENGINE_PROPS[stage.engineType ?? 'basic-exhaust'].efficiency * 100).toFixed(0)}</span>
+          <label title="Seconds before burnout when thrust linearly ramps down to zero.">Burndown time [s]:</label>
+          <input
+            style={stageFieldStyle}
+            type="number"
+            min={0}
+            max={20}
+            step={0.1}
+            value={stage.burndownTime ?? 0}
+            onChange={(e) =>
+              onUpdate({
+                burndownTime: Math.max(0, Math.min(20, parseFloat(e.target.value) || 0)),
+              })
+            }
+          />
         </div>
 
         {stats != null && (
@@ -422,20 +524,20 @@ function StageEditor({
             <hr style={{ border: 'none', borderTop: '1px solid #ccc', margin: '0.75rem 0' }} />
             <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#555', marginBottom: '0.5rem' }}>Summary</div>
             <div style={stageGridStyle}>
-              <label>Dry mass:</label>
-              <span>{stats.dryMass.toFixed(1)} kg</span>
-              <label>Wet mass:</label>
-              <span>{stats.wetMass.toFixed(1)} kg</span>
-              <label>Burn duration:</label>
-              <span>{stats.burnDuration.toFixed(1)} s</span>
-              <label>Exhaust velocity:</label>
-              <span>{stats.exhaustVelocity.toFixed(0)} m/s</span>
-              <label>Thrust:</label>
-              <span>{stats.thrust.toFixed(0)} N</span>
-              <label>Acceleration at takeoff:</label>
-              <span>{stats.accelerationAtTakeoff.toFixed(1)} m/s²</span>
-              <label>Delta-v:</label>
-              <span>{stats.deltaV.toFixed(0)} m/s</span>
+              <label>Dry mass [kg]:</label>
+              <span>{stats.dryMass.toFixed(1)}</span>
+              <label>Wet mass [kg]:</label>
+              <span>{stats.wetMass.toFixed(1)}</span>
+              <label>Burn duration [s]:</label>
+              <span>{stats.burnDuration.toFixed(1)}</span>
+              <label>Exhaust velocity [m/s]:</label>
+              <span>{stats.exhaustVelocity.toFixed(0)}</span>
+              <label>Thrust [N]:</label>
+              <span>{stats.thrust.toFixed(0)}</span>
+              <label>Acceleration at takeoff [m/s²]:</label>
+              <span>{stats.accelerationAtTakeoff.toFixed(1)}</span>
+              <label>Delta-v [m/s]:</label>
+              <span>{stats.deltaV.toFixed(0)}</span>
             </div>
           </>
         )}

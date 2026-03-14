@@ -8,7 +8,13 @@ import type {
   SimState,
 } from '../sim/simTypes';
 
-export type AppMode = 'design' | 'missions' | 'upgrades';
+export type AppMode = 'design' | 'achievements' | 'upgrades';
+
+export interface AchievementNotification {
+  id: string;
+  title: string;
+  message: string;
+}
 
 export interface ChartSettings {
   showAltitude: boolean;
@@ -56,6 +62,11 @@ export interface AppStore {
   setCurrentReplayTime: (t: number) => void;
   setReplayPlaying: (playing: boolean) => void;
   setReplaySpeed: (speed: number) => void;
+
+  // Achievement notifications
+  achievementNotifications: AchievementNotification[];
+  pushAchievementNotification: (notification: AchievementNotification) => void;
+  removeAchievementNotification: (id: string) => void;
   
   // Chart settings
   chartSettings: ChartSettings;
@@ -73,6 +84,10 @@ export interface AppStore {
   unlockedUpgrades: string[];
   addMoney: (amount: number) => void;
   purchaseUpgrade: (upgradeId: string, cost: number) => void;
+
+  // Achievements
+  unlockedAchievements: string[];
+  unlockAchievement: (id: string) => void;
 }
 
 const defaultChartSettings: ChartSettings = {
@@ -152,6 +167,15 @@ export const useStore = create<AppStore>((set) => ({
   setCurrentReplayTime: (t) => set({ currentReplayTime: t }),
   setReplayPlaying: (playing) => set({ replayPlaying: playing }),
   setReplaySpeed: (speed) => set({ replaySpeed: speed }),
+  achievementNotifications: [],
+  pushAchievementNotification: (notification) =>
+    set((state) => ({
+      achievementNotifications: [...state.achievementNotifications, notification],
+    })),
+  removeAchievementNotification: (id) =>
+    set((state) => ({
+      achievementNotifications: state.achievementNotifications.filter((n) => n.id !== id),
+    })),
   
   chartSettings: defaultChartSettings,
   updateChartSettings: (settings) =>
@@ -184,4 +208,11 @@ export const useStore = create<AppStore>((set) => ({
         designSlots: slots,
       };
     }),
+  unlockedAchievements: [],
+  unlockAchievement: (id) =>
+    set((state) =>
+      state.unlockedAchievements.includes(id)
+        ? state
+        : { unlockedAchievements: [...state.unlockedAchievements, id] }
+    ),
 }));

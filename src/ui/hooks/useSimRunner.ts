@@ -30,7 +30,36 @@ export function useSimRunner() {
     addReplay,
     addMoney,
     cashPerSecond,
+    pushAchievementNotification,
+    unlockAchievement,
+    unlockedAchievements,
   } = useStore();
+
+  const getCompletedAchievements = (samples: TelemetrySample[]) => {
+    if (samples.length === 0)
+      return [] as { id: string; title: string; message: string; points: number }[];
+    const completed: { id: string; title: string; message: string; points: number }[] = [];
+    const maxAltitude = Math.max(...samples.map((s) => s.altitude));
+    if (maxAltitude > 0) {
+      completed.push({
+        id: 'sounding',
+        title: 'Sounding',
+        message: 'You completed a sounding flight.',
+        points: 5,
+      });
+    }
+    const STRATOSPHERE_ALTITUDE_M = 15000;
+    const stratosphereSample = samples.find((s) => s.altitude >= STRATOSPHERE_ALTITUDE_M);
+    if (stratosphereSample) {
+      completed.push({
+        id: 'stratosphere-test',
+        title: 'Stratosphere test',
+        message: 'You delivered payload to the stratosphere.',
+        points: 5,
+      });
+    }
+    return completed;
+  };
 
   useEffect(() => {
     const worker = new Worker(
@@ -65,17 +94,23 @@ export function useSimRunner() {
     apiRef.current.setStoppedCallback(
       Comlink.proxy(() => {
         setSimRunning(false);
-        // Run mission payouts and save replay (same as manual stop)
+        // Run achievement rewards and save replay (same as manual stop)
         const state = useStore.getState();
-        const { telemetry: t, currentDesign: d } = state;
+        const { telemetry: t, currentDesign: d, unlockedAchievements: unlocked } = state;
         if (t.length > 0) {
-          let totalPayout = 0;
-          const maxAltitude = Math.max(...t.map((s) => s.altitude));
-          totalPayout += Math.floor(maxAltitude / 100) * 1;
-          const STRATOSPHERE_ALTITUDE_M = 15000;
-          const stratosphereSample = t.find((s) => s.altitude >= STRATOSPHERE_ALTITUDE_M);
-          if (stratosphereSample) totalPayout += Math.floor(stratosphereSample.mass) * 1;
-          if (totalPayout > 0) state.addMoney(totalPayout);
+          const completed = getCompletedAchievements(t);
+          const newlyCompleted = completed.filter(
+            (a) => !unlocked.includes(a.id)
+          );
+          newlyCompleted.forEach((a) => {
+            state.addMoney(a.points);
+            state.unlockAchievement(a.id);
+            state.pushAchievementNotification({
+              id: `${a.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+              title: a.title,
+              message: `${a.message} (+${a.points} points)`,
+            });
+          });
         }
         if (d && eventsRef.current.length > 0) {
           apiRef.current?.getSimState().then(async (simState) => {
@@ -142,19 +177,21 @@ export function useSimRunner() {
     await apiRef.current.stopSim();
     setSimRunning(false);
 
-    // Mission payouts
+    // Achievement checks and rewards (only for newly unlocked achievements)
     if (telemetry.length > 0) {
-      let totalPayout = 0;
-      // Sounding: $1 per 100 m max altitude reached
-      const maxAltitude = Math.max(...telemetry.map((s) => s.altitude));
-      totalPayout += Math.floor(maxAltitude / 100) * 1;
-      // Stratosphere test: $1 per kg delivered to stratosphere (first crossing of 15 km)
-      const STRATOSPHERE_ALTITUDE_M = 15000;
-      const stratosphereSample = telemetry.find((s) => s.altitude >= STRATOSPHERE_ALTITUDE_M);
-      if (stratosphereSample) {
-        totalPayout += Math.floor(stratosphereSample.mass) * 1; // $1 per kg
-      }
-      if (totalPayout > 0) addMoney(totalPayout);
+      const completed = getCompletedAchievements(telemetry);
+      const newlyCompleted = completed.filter(
+        (a) => !unlockedAchievements.includes(a.id)
+      );
+      newlyCompleted.forEach((a) => {
+        addMoney(a.points);
+        unlockAchievement(a.id);
+        pushAchievementNotification({
+          id: `${a.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          title: a.title,
+          message: `${a.message} (+${a.points} points)`,
+        });
+      });
     }
 
     if (currentDesign && eventsRef.current.length > 0) {
@@ -174,7 +211,7 @@ export function useSimRunner() {
         addReplay(bundle);
       }
     }
-  }, [currentDesign, simStepSize, telemetry, setSimRunning, addReplay, addMoney]);
+  }, [currentDesign, simStepSize, telemetry, unlockedAchievements, setSimRunning, addReplay, addMoney]);
 
   return { startSim, stopSim };
 }

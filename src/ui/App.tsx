@@ -7,6 +7,7 @@ import { RocketEditor } from './components/RocketEditor';
 import { MissionsPanel } from './components/MissionsPanel';
 import { ChartsPanel } from './components/ChartsPanel';
 import { UpgradesPanel } from './components/UpgradesPanel';
+import { AchievementToasts } from './components/AchievementToasts';
 
 const tabStyle = (active: boolean) => ({
   padding: '0.5rem 1rem',
@@ -24,10 +25,10 @@ export function App() {
     switch (mode) {
       case 'design':
         return <RocketEditor onLaunch={startSim} onStop={stopSim} />;
-      case 'missions':
-        return <MissionsPanel />;
       case 'upgrades':
         return <UpgradesPanel />;
+      default:
+        return null;
     }
   };
 
@@ -46,10 +47,10 @@ export function App() {
         }}
       >
         <div style={{ fontWeight: 600, fontSize: '1.1rem', minWidth: '6rem' }}>
-          $ {money.toLocaleString()}
+          Points: {money.toLocaleString()}
         </div>
         <div style={{ fontSize: '0.9rem', color: '#666' }}>
-          Cash/s: $ {cashPerSecond}
+          Points/s: {cashPerSecond}
         </div>
         <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.9rem' }}>
           Step (s):
@@ -66,14 +67,19 @@ export function App() {
         <button onClick={() => setMode('design')} style={tabStyle(mode === 'design')}>
           Design
         </button>
-        <button onClick={() => setMode('missions')} style={tabStyle(mode === 'missions')}>
-          Missions
+        <button onClick={() => setMode('achievements')} style={tabStyle(mode === 'achievements')}>
+          Achievements
         </button>
         <button onClick={() => setMode('upgrades')} style={tabStyle(mode === 'upgrades')}>
           Upgrades
         </button>
       </div>
-      <Layout left={renderLeftPanel()} right={renderRightPanel()} />
+      {mode === 'achievements' ? (
+        <MissionsPanel />
+      ) : (
+        <Layout left={renderLeftPanel()} right={renderRightPanel()} />
+      )}
+      <AchievementToasts />
     </div>
   );
 }

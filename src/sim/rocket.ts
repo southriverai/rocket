@@ -14,22 +14,27 @@ export function designToParts(design: RocketDesign): Part[] {
   if (!design.stages?.length) return [];
   const stats = computeStageStats(design);
   const parts: Part[] = [];
+  const massFactor = Math.max(1, Math.min(5, design.overEngineeringFactor ?? 1));
   design.stages.forEach((stage, i) => {
-    const tankDry = stage.material
-      ? getTankDryMass(stage.fuelMass, stage.material)
-      : Math.max(10, stage.fuelMass * 0.1);
+    const material = design.structureMaterial ?? stage.material;
+    const elongation = design.structureElongation ?? stage.elongation ?? 1;
+    const aero = design.structureAerodynamics ?? stage.aerodynamics ?? 'cone';
+    const tankDry =
+      (material
+        ? getTankDryMass(stage.fuelMass, material)
+        : Math.max(10, stage.fuelMass * 0.1)) * massFactor;
     const volumeL = fuelMassToVolumeL(stage.fuelMass, stage.solidFuelType ?? 'black-powder');
-    const R = radiusFromVolumeAndElongation(volumeL, stage.elongation ?? 1);
+    const R = radiusFromVolumeAndElongation(volumeL, elongation);
     const crossSection = crossSectionAreaFromRadius(R);
     const frictionCoeff =
       stage.frictionCoeff ??
-      (stage.aerodynamics ? AERODYNAMICS_COEFF[stage.aerodynamics] : 0.5);
+      (aero ? AERODYNAMICS_COEFF[aero] : 0.5);
     parts.push({
       id: `${stage.id}-tank`,
       type: 'tank',
       mass: tankDry,
       fuelMass: stage.fuelMass,
-      material: stage.material ?? 'steel',
+      material: material ?? 'steel',
       crossSection,
       frictionCoeff,
     });
@@ -41,7 +46,7 @@ export function designToParts(design: RocketDesign): Part[] {
     parts.push({
       id: `${stage.id}-engine`,
       type: 'engine',
-      mass: engine.massKg,
+      mass: engine.massKg * massFactor,
       thrust,
       isp,
       throttleable: true,
@@ -73,17 +78,26 @@ export interface StageStats {
 /** Compute per-stage dry mass, wet mass, and burn duration from design. */
 export function computeStageStats(design: RocketDesign): StageStats[] {
   if (!design.stages?.length) return [];
+  const massFactor = Math.max(1, Math.min(5, design.overEngineeringFactor ?? 1));
   return design.stages.map((stage) => {
-    const tankDry = stage.material
-      ? getTankDryMass(stage.fuelMass, stage.material)
-      : Math.max(10, stage.fuelMass * 0.1);
+    const material = design.structureMaterial ?? stage.material;
+    const tankDry =
+      (material
+        ? getTankDryMass(stage.fuelMass, material)
+        : Math.max(10, stage.fuelMass * 0.1)) * massFactor;
     const engine = getEngineProps(stage.engineType ?? 'basic-exhaust');
-    const dryMass = tankDry + engine.massKg;
+    const dryMass = tankDry + engine.massKg * massFactor;
     const wetMass = dryMass + stage.fuelMass;
-    const solidFuel = (stage.stageType ?? 'solid') === 'solid' ? SOLID_FUEL_PROPS[stage.solidFuelType ?? 'black-powder'] : null;
-    const burnRateKgPerS = solidFuel && stage.fuelMass > 0
-      ? engine.burnRateLs * solidFuel.densityKgL
-      : 0;
+    const solidFuel =
+      (stage.stageType ?? 'solid') === 'solid'
+        ? SOLID_FUEL_PROPS[stage.solidFuelType ?? 'black-powder']
+        : null;
+    const burnRateLs = Math.max(
+      0,
+      Math.min(1, stage.burnRateOverrideLs ?? engine.burnRateLs)
+    );
+    const burnRateKgPerS =
+      solidFuel && stage.fuelMass > 0 ? burnRateLs * solidFuel.densityKgL : 0;
     const burnDuration = burnRateKgPerS > 0 ? stage.fuelMass / burnRateKgPerS : 0;
     // Ideal energy-limited exhaust velocity: (1/2) v_e^2 = eta * E_specific => v_e = sqrt(2 * eta * E)
     const exhaustVelocity = solidFuel
@@ -115,9 +129,7 @@ export function getTotalBurnDuration(design: RocketDesign): number {
 }
 
 function getPartDryMass(part: Part): number {
-  if (part.type === 'tank' && part.fuelMass != null && part.material) {
-    return getTankDryMass(part.fuelMass, part.material);
-  }
+  // Part mass already includes any over-engineering factor; treat it as dry mass.
   return part.mass;
 }
 
@@ -164,17 +176,70 @@ export function computeThrust(
   currentFuel: number
 ): number {
   let totalThrust = 0;
-  
   const parts = design.parts ?? [];
-  for (const part of parts) {
-    if (activeParts.has(part.id) && part.type === 'engine' && part.thrust && part.isp) {
-      if (currentFuel > 0) {
-        const effectiveThrottle = part.throttleable !== false ? throttle : 1.0;
-        totalThrust += part.thrust * effectiveThrottle;
-      }
+  const stages = design.stages ?? [];
+
+  // Compute total fuel capacity for active stages
+  let totalCapacity = 0;
+  for (const stage of stages) {
+    const tankId = `${stage.id}-tank`;
+    if (activeParts.has(tankId)) {
+      const part = parts.find((p) => p.id === tankId);
+      if (part?.fuelMass) totalCapacity += part.fuelMass;
     }
   }
-  
+
+  const fuelRemaining = Math.max(0, currentFuel);
+  const fuelUsed = Math.max(0, totalCapacity - fuelRemaining);
+
+  for (const stage of stages) {
+    const tankId = `${stage.id}-tank`;
+    const engineId = `${stage.id}-engine`;
+    if (!activeParts.has(tankId) || !activeParts.has(engineId)) continue;
+    const enginePart = parts.find((p) => p.id === engineId);
+    if (!enginePart?.thrust || !enginePart.isp) continue;
+
+    // Per-stage capacity: tank fuelMass
+    const stageCapacity =
+      parts.find((p) => p.id === tankId && p.fuelMass != null)?.fuelMass ?? 0;
+    if (stageCapacity <= 0) continue;
+
+    // Approximate how much of this stage's fuel has been used
+    const stageStartFuel = Math.max(0, totalCapacity - stageCapacity);
+    const stageFuelUsed = Math.max(
+      0,
+      Math.min(stageCapacity, fuelUsed - stageStartFuel)
+    );
+    const stageFuelRemaining = Math.max(0, stageCapacity - stageFuelUsed);
+
+    let burndownMultiplier = 1;
+    const burndownTime = Math.max(0, Math.min(20, stage.burndownTime ?? 0));
+    if (burndownTime > 0 && stageCapacity > 0) {
+      const engine = getEngineProps(stage.engineType ?? 'basic-exhaust');
+      const solidFuel =
+        (stage.stageType ?? 'solid') === 'solid'
+          ? SOLID_FUEL_PROPS[stage.solidFuelType ?? 'black-powder']
+          : null;
+      const burnRateLs = Math.max(
+        0,
+        Math.min(1, stage.burnRateOverrideLs ?? engine.burnRateLs)
+      );
+      const burnRateKgPerS =
+        solidFuel && stage.fuelMass > 0 ? burnRateLs * solidFuel.densityKgL : 0;
+      const burnDuration =
+        burnRateKgPerS > 0 ? stageCapacity / burnRateKgPerS : 0;
+      if (burnDuration > 0 && stageFuelRemaining <= burndownTime * (stageCapacity / burnDuration)) {
+        const tRemaining = (stageFuelRemaining / stageCapacity) * burnDuration;
+        burndownMultiplier = Math.max(0, Math.min(1, tRemaining / burndownTime));
+      }
+    }
+
+    if (stageFuelRemaining > 0) {
+      const effectiveThrottle = enginePart.throttleable !== false ? throttle : 1.0;
+      totalThrust += enginePart.thrust * effectiveThrottle * burndownMultiplier;
+    }
+  }
+
   return totalThrust;
 }
 
