@@ -2,10 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import type { RocketDesign, Stage, Material, SolidFuelType, StageType, EngineType, AerodynamicsType } from '../../sim/simTypes';
-import { AERODYNAMICS_OPTIONS, AERODYNAMICS_COEFF } from '../../sim/simTypes';
+import { AERODYNAMICS_OPTIONS } from '../../sim/simTypes';
 import { MATERIAL_LABELS, getTankDryMass, STRUCTURAL_LOAD_LIMIT_N_PER_KG } from '../../sim/materials';
 import { SOLID_FUEL_PROPS, SOLID_FUEL_TYPES, fuelMassToVolumeL } from '../../sim/solidFuels';
-import { radiusFromVolumeAndElongation, crossSectionAreaFromRadius } from '../../sim/tankGeometry';
 import { ENGINE_PROPS, ENGINE_TYPES } from '../../sim/engines';
 import { getMaxStages, getMaxDesignSlots, getUnlockedStageTypes, STAGE_TYPE_LABELS } from './UpgradesPanel';
 import { useStore } from '../../state/store';
@@ -39,7 +38,6 @@ export function RocketEditor({
     ensureDesignSlotsCount,
     unlockedUpgrades,
     simRunning,
-    telemetry,
   } = useStore();
   const maxStages = getMaxStages(unlockedUpgrades);
   const maxDesignSlots = getMaxDesignSlots(unlockedUpgrades);
